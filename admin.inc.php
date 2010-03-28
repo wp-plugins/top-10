@@ -402,6 +402,7 @@ function tptn_pop_display($daily = false, $page = 0, $limit = 10) {
 		$sql .= "FROM $table_name INNER JOIN ". $wpdb->posts ." ON postnumber=ID " ;
 		if ($tptn_settings['exclude_pages']) $sql .= "AND post_type = 'post' ";
 		$sql .= "AND post_status = 'publish' ";
+		$sql .= "GROUP BY postnumber ";
 		$sql .= "ORDER BY cntaccess DESC LIMIT $page, $limit";
 	} else {
 		$sql = "SELECT postnumber, SUM(cntaccess) as sumCount, dp_date, ID, post_type, post_status ";
