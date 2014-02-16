@@ -1,4 +1,4 @@
-=== Top 10  - Popular posts plugin for WordPress ===
+﻿=== Top 10  - Popular posts plugin for WordPress ===
 Tags: top 10, counter, popular posts, top posts, daily popular, page views, statistics
 Contributors: Ajay
 Donate link: http://ajaydsouza.com/donate/
@@ -375,3 +375,4 @@ Replace `{$cpt}` by the slug of your custom post type. E.g. to make the columns 
 `
 add_filter( 'manage_edit-projects_sortable_columns', 'tptn_column_register_sortable' );
 `
+
