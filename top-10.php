@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Top 10
-Version:     1.9.9.1
+Version:     1.9.9.2
 Plugin URI:  http://ajaydsouza.com/wordpress/plugins/top-10/
 Description: Count daily and total visits per post and display the most popular posts based on the number of views. Based on the plugin by <a href="http://weblogtoolscollection.com">Mark Ghosh</a>
 Author:      Ajay D'Souza
@@ -334,8 +334,7 @@ function tptn_pop_posts( $args ) {
 		$sql .= "FROM {$table_name} INNER JOIN ". $wpdb->posts ." ON postnumber=ID " ;
 		$sql .= "AND post_status = 'publish' ";
 		if ($exclude_post_ids!='') { 
-			$sql .= "AND ID NOT IN (%s) ";
-			$args[] = $exclude_post_ids;	// Add the post types to the $args array
+			$sql .= "AND ID NOT IN ({$exclude_post_ids}) ";
 		}
 		$sql .= "AND ( ";
 		$multiple = false;
@@ -360,8 +359,7 @@ function tptn_pop_posts( $args ) {
 		$sql .= "FROM {$table_name} INNER JOIN ". $wpdb->posts ." ON postnumber=ID " ;
 		$sql .= "AND post_status = 'publish' AND dp_date >= '%s' ";
 		if ($exclude_post_ids!='') { 
-			$sql .= "AND ID NOT IN (%s) ";
-			$args[] = $exclude_post_ids;	// Add the post types to the $args array
+			$sql .= "AND ID NOT IN ({$exclude_post_ids}) ";
 		}
 		$sql .= "AND ( ";
 		$multiple = false;
@@ -530,7 +528,7 @@ class WidgetTopTen extends WP_Widget
 	function form($instance) {
 		$title = isset($instance['title']) ? esc_attr($instance['title']) : '';
 		$limit = isset($instance['limit']) ? esc_attr($instance['limit']) : '';
-		$disp_list_count = isset($instance['disp_list_count']) ? esc_attr($instance['disp_list_count']) : true;
+		$disp_list_count = isset($instance['disp_list_count']) ? esc_attr($instance['disp_list_count']) : '';
 		$show_excerpt = isset($instance['show_excerpt']) ? esc_attr($instance['show_excerpt']) : '';
 		$show_author = isset($instance['show_author']) ? esc_attr($instance['show_author']) : '';
 		$show_date = isset($instance['show_date']) ? esc_attr($instance['show_date']) : '';
@@ -1004,16 +1002,14 @@ function tptn_get_the_post_thumbnail($args = array()) {
 
 	} else {
 		$postimage = get_post_meta($result->ID, $thumb_meta, true);	// Check
+		if (!$postimage) $postimage = tptn_get_first_image($result->ID);	// Get the first image
 		if (!$postimage && $scan_images) {
 			preg_match_all( '|<img.*?src=[\'"](.*?)[\'"].*?>|i', $result->post_content, $matches );
 			// any image there?
 			if (isset($matches[1][0]) && $matches[1][0]) {
-				if (((strpos($matches[1][0], parse_url(get_option('home'),PHP_URL_HOST)) !== false) && (strpos($matches[1][0], 'http://') !== false))|| ((strpos($matches[1][0], 'http://') === false))) {
 					$postimage = preg_replace('/\?.*/', '', $matches[1][0]); // we need the first one only!
-				}
 			}
 		}
-		if (!$postimage) $postimage = tptn_get_first_image($result->ID);	// Get the first image
 		if (!$postimage) $postimage = get_post_meta($result->ID, '_video_thumbnail', true); // If no other thumbnail set, try to get the custom video thumbnail set by the Video Thumbnails plugin
 		if ($thumb_default_show && !$postimage) $postimage = $thumb_default; // If no thumb found and settings permit, use default thumb
 		if ($postimage) {
