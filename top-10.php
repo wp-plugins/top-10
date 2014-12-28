@@ -1136,12 +1136,6 @@ function tptn_read_options() {
 	// Upgrade table code
 	global $tptn_db_version, $network_wide;
 
-	$installed_ver = get_option( "tptn_db_version" );
-
-	if ( $installed_ver != $tptn_db_version ) {
-		tptn_activation_hook( $network_wide );
-	}
-
 	$tptn_settings_changed = false;
 
 	$defaults = tptn_default_options();
