@@ -8,13 +8,13 @@
  * @author    Ajay D'Souza <me@ajaydsouza.com>
  * @license   GPL-2.0+
  * @link      http://ajaydsouza.com
- * @copyright 2008-2014 Ajay D'Souza
+ * @copyright 2008-2015 Ajay D'Souza
  *
  * @wordpress-plugin
  * Plugin Name:	Top 10
  * Plugin URI:	http://ajaydsouza.com/wordpress/plugins/top-10/
  * Description:	Count daily and total visits per post and display the most popular posts based on the number of views
- * Version: 	2.0.2
+ * Version: 	2.0.3
  * Author: 		Ajay D'Souza
  * Author URI: 	http://ajaydsouza.com
  * Text Domain:	tptn
@@ -74,7 +74,7 @@ $tptn_url = plugins_url() . '/' . plugin_basename( dirname( __FILE__ ) );
  * @var string
  */
 global $tptn_db_version;
-$tptn_db_version = "4.0";
+$tptn_db_version = "5.0";
 
 
 /**
@@ -1049,6 +1049,8 @@ function tptn_default_options() {
 		'daily_midnight' => true,		// Start daily counts from midnight (default as old behaviour)
 		'daily_range' => '1',				// Daily Popular will contain posts of how many days?
 		'hour_range' => '0',				// Daily Popular will contain posts of how many days?
+		'uninstall_clean_options' => true,	// Cleanup options
+		'uninstall_clean_tables' => false,	// Cleanup tables
 		'show_credit' => false,			// Add link to plugin page of my blog in top posts list
 
 		/* Counter and tracker options */
@@ -1264,17 +1266,29 @@ function tptn_single_activate() {
 
 		$wpdb->hide_errors();
 
-		$wpdb->query( "ALTER TABLE " . $table_name . " MODIFY postnumber bigint(20) " );
-		$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY postnumber bigint(20) " );
-		$wpdb->query( "ALTER TABLE " . $table_name . " MODIFY cntaccess bigint(20) " );
-		$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY cntaccess bigint(20) " );
-		$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY dp_date DATETIME " );
-		$wpdb->query( "ALTER TABLE " . $table_name . " DROP PRIMARY KEY, ADD PRIMARY KEY(postnumber, blog_id) " );
-		$wpdb->query( "ALTER TABLE " . $table_name_daily . " DROP PRIMARY KEY, ADD PRIMARY KEY(postnumber, dp_date, blog_id) " );
-		$wpdb->query( "ALTER TABLE " . $table_name . " ADD blog_id bigint(20) NOT NULL " );
-		$wpdb->query( "ALTER TABLE " . $table_name_daily . " ADD blog_id bigint(20) NOT NULL " );
-		$wpdb->query( "UPDATE " . $table_name . " SET blog_id = 1 WHERE blog_id = 0 " );
-		$wpdb->query( "UPDATE " . $table_name_daily . " SET blog_id = 1 WHERE blog_id = 0 " );
+		switch ( $installed_ver ) {
+
+			case '4.0':
+			case 4.0:
+				$wpdb->query( "ALTER TABLE " . $table_name . " CHANGE blog_id blog_id bigint(20) NOT NULL DEFAULT '1'" );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " CHANGE blog_id blog_id bigint(20) NOT NULL DEFAULT '1'" );
+				break;
+
+			default:
+
+				$wpdb->query( "ALTER TABLE " . $table_name . " MODIFY postnumber bigint(20) " );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY postnumber bigint(20) " );
+				$wpdb->query( "ALTER TABLE " . $table_name . " MODIFY cntaccess bigint(20) " );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY cntaccess bigint(20) " );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " MODIFY dp_date DATETIME " );
+				$wpdb->query( "ALTER TABLE " . $table_name . " DROP PRIMARY KEY, ADD PRIMARY KEY(postnumber, blog_id) " );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " DROP PRIMARY KEY, ADD PRIMARY KEY(postnumber, dp_date, blog_id) " );
+				$wpdb->query( "ALTER TABLE " . $table_name . " ADD blog_id bigint(20) NOT NULL DEFAULT '1'" );
+				$wpdb->query( "ALTER TABLE " . $table_name_daily . " ADD blog_id bigint(20) NOT NULL DEFAULT '1'" );
+				$wpdb->query( "UPDATE " . $table_name . " SET blog_id = 1 WHERE blog_id = 0 " );
+				$wpdb->query( "UPDATE " . $table_name_daily . " SET blog_id = 1 WHERE blog_id = 0 " );
+
+		}
 
 		$wpdb->show_errors();
 

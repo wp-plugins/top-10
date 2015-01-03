@@ -6,7 +6,7 @@
  * @author    Ajay D'Souza <me@ajaydsouza.com>
  * @license   GPL-2.0+
  * @link      http://ajaydsouza.com
- * @copyright 2008-2014 Ajay D'Souza
+ * @copyright 2008-2015 Ajay D'Souza
  */
 
 // If this file is called directly, abort.
@@ -125,9 +125,9 @@ class Top_Ten_Widget extends WP_Widget {
 			 *
 			 * @since 2.0.0
 			 *
-			 * @param	array	$tptn_settings	Top 10 settings array
+			 * @param	array	$instance	Widget options array
 			 */
-			do_action( 'tptn_widget_options_after', $tptn_settings );
+			do_action( 'tptn_widget_options_after', $instance );
 		?>
 
 		<?php

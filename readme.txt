@@ -55,11 +55,17 @@ If you're looking for a plugin to display related, look no further than my other
 
 == Upgrade Notice ==
 
-= 2.0.2 =
-* New: Option to display the daily posts count from midnight. This is enabled by default and mimics the original behaviour of the counter
+= 2.0.3 =
+* Fixed: Metabox update did not work properly in v2.0; New option to keep data on uninstall.
 
 
 == Changelog ==
+
+= 2.0.3 =
+* New: Options to choose if you want to delete the Top 10 options and/or data when deleting the plugin
+* Fixed: Metabox update did not work properly in v2.0
+* Fixed: Duplicate include files
+* Modified: In the mySQL tables, the blog_id default value is set to 1
 
 = 2.0.2 =
 * New: Option to display the daily posts count from midnight. This is enabled by default and mimics the original behaviour of the counter in Top 10 v1.x
