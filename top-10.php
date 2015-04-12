@@ -14,7 +14,7 @@
  * Plugin Name:	Top 10
  * Plugin URI:	http://ajaydsouza.com/wordpress/plugins/top-10/
  * Description:	Count daily and total visits per post and display the most popular posts based on the number of views
- * Version: 	2.0.3
+ * Version: 	2.1.0
  * Author: 		Ajay D'Souza
  * Author URI: 	http://ajaydsouza.com
  * Text Domain:	tptn
@@ -155,7 +155,7 @@ function tptn_add_viewed_count( $content ) {
 				if ( $tptn_settings['cache_fix'] ) {
 					$output = '<script type="text/javascript">jQuery.ajax({url: "' . $home_url . '", data: {top_ten_id: ' . $id . ', top_ten_blog_id: ' . $blog_id . ', activate_counter: ' . $activate_counter . ', top10_rnd: (new Date()).getTime() + "-" + Math.floor(Math.random()*100000)}});</script>';
 				} else {
-					$output = '<script type="text/javascript" async src="' . $home_url . '?top_ten_id=' . $id . '&amp;top_ten_blog_id=' . $blog_id . '&amp;activate_counter=' . $activate_counter . '"></script>';
+					$output = '<script type="text/javascript" async src="' . $home_url . '?top_ten_id=' . $id . '&top_ten_blog_id=' . $blog_id . '&activate_counter=' . $activate_counter . '"></script>';
 				}
 			}
 
@@ -367,7 +367,7 @@ function echo_tptn_post_count( $echo = 1 ) {
     $nonce = wp_create_nonce( $nonce_action );
 
 	if ( $tptn_settings['dynamic_post_count'] ) {
-		$output = '<div class="tptn_counter" id="tptn_counter_' . $id . '"><script type="text/javascript" data-cfasync="false" src="' . $home_url . '?top_ten_id='.$id.'&amp;view_counter=1&amp;_wpnonce=' . $nonce . '"></script></div>';
+		$output = '<div class="tptn_counter" id="tptn_counter_' . $id . '"><script type="text/javascript" data-cfasync="false" src="' . $home_url . '?top_ten_id='.$id.'&view_counter=1&_wpnonce=' . $nonce . '"></script></div>';
 	} else {
 		$output = '<div class="tptn_counter" id="tptn_counter_' . $id . '">' . get_tptn_post_count( $id ) . '</div>';
 	}
@@ -514,15 +514,6 @@ function get_tptn_post_count_only( $id = FALSE, $count = 'total', $blog_id = FAL
 function tptn_pop_posts( $args ) {
 	global $wpdb, $id, $tptn_settings;
 
-	// Initialise some variables
-	$fields = '';
-	$where = '';
-	$join = '';
-	$groupby = '';
-	$orderby = '';
-	$limits = '';
-	$match_fields = '';
-
 	$defaults = array(
 		'is_widget' => FALSE,
 		'daily' => FALSE,
@@ -556,6 +547,345 @@ function tptn_pop_posts( $args ) {
 	if ( empty( $thumb_height ) ) {
 		$thumb_height = $tptn_settings['thumb_height'];
 	}
+
+	$exclude_categories = explode( ',', $exclude_categories );
+
+	$target_attribute = ( $link_new_window ) ? ' target="_blank" ' : ' ';	// Set Target attribute
+	$rel_attribute = ( $link_nofollow ) ? 'bookmark nofollow' : 'bookmark';	// Set nofollow attribute
+
+	// Retrieve the popular posts
+	$results = get_tptn_pop_posts( $args );
+
+	if ( $posts_only ) {	// Return the array of posts only if the variable is set
+		return $results;
+	}
+
+	$counter = 0;
+
+	$output = '';
+
+	$shortcode_class = $is_shortcode ? ' tptn_posts_shortcode' : '';
+	$widget_class = $is_widget ? ' tptn_posts_widget' : '';
+
+	$post_classes = $widget_class . $shortcode_class;
+
+	/**
+	 * Filter the classes added to the div wrapper of the Top 10.
+	 *
+	 * @since	2.1.0
+	 *
+	 * @param	string   $post_classes	Post classes string.
+	 */
+	$post_classes = apply_filters( 'tptn_post_class', $post_classes );
+
+	if ( $heading ) {
+		if ( ! $daily ) {
+			$output .= '<div id="tptn_related" class="tptn_posts ' . $post_classes . '">';
+
+			/**
+			 * Filter the title of the Top posts.
+			 *
+			 * @since	1.9.5
+			 *
+			 * @param	string   $title	Title of the popular posts.
+			 */
+			$output .= apply_filters( 'tptn_heading_title', $title );
+		} else {
+			$output .= '<div id="tptn_related_daily" class="tptn_posts_daily' . $shortcode_class . '">';
+
+			/**
+			 * Already defined in top-10.php
+			 */
+			$output .= apply_filters( 'tptn_heading_title', $title_daily );
+		}
+	} else {
+		if ( ! $daily ) {
+			$output .= '<div class="tptn_posts' . $post_classes . '">';
+		} else {
+			$output .= '<div class="tptn_posts_daily' . $post_classes . '">';
+		}
+	}
+
+	if ( $results ) {
+
+		/**
+		 * Filter the opening tag of the popular posts list
+		 *
+		 * @since	1.9.10.1
+		 *
+		 * @param	string	$before_list	Opening tag set in the Settings Page
+		 */
+		$output .= apply_filters( 'tptn_before_list', $before_list );
+
+		$processed_results = array();
+
+		foreach ( $results as $result ) {
+			/* Support WPML */
+		    $resultid = tptn_object_id_cur_lang( $result->ID );
+
+		    if ( in_array( $resultid, $processed_results ) ) {
+		        continue;
+		    }
+
+		    array_push( $processed_results, $resultid );
+
+		    $sumcount = $result->sumCount;		// Store the count. We'll need this later
+
+			$result = get_post( $resultid );	// Let's get the Post using the ID
+
+			/**
+			 * Filter the post ID for each result. Allows a custom function to hook in and change the ID if needed.
+			 *
+			 * @since	1.9.8.5
+			 *
+			 * @param	int	$result->ID	ID of the post
+			 */
+			$postid = apply_filters( 'tptn_post_id', $result->ID );
+
+			/**
+			 * Filter the post ID for each result. This filtered ID is passed as a parameter to fetch categories.
+			 *
+			 * This is useful since you might want to fetch a different set of categories for a linked post ID,
+			 * typically in the case of plugins that let you set mutiple languages
+			 *
+			 * @since	1.9.8.5
+			 *
+			 * @param	int	$result->ID	ID of the post
+			 */
+			$categorys = get_the_category( apply_filters( 'tptn_post_cat_id', $result->ID ) );	//Fetch categories of the plugin
+
+			$p_in_c = false;	// Variable to check if post exists in a particular category
+
+			foreach ( $categorys as $cat ) {	// Loop to check if post exists in excluded category
+				$p_in_c = ( in_array( $cat->cat_ID, $exclude_categories ) ) ? true : false;
+				if ( $p_in_c ) break;	// End loop if post found in category
+			}
+
+			$post_title = tptn_max_formatted_content( get_the_title( $postid ), $title_length );
+
+			/**
+			 * Filter the post title of each list item.
+			 *
+			 * @since	2.0.0
+			 *
+			 * @param	string	$post_title	Post title in the list.
+			 * @param	object	$result	Object of the current post result
+			 */
+			$post_title = apply_filters( 'tptn_post_title', $post_title, $result );
+
+
+			if ( ! $p_in_c ) {
+
+				/**
+				 * Filter the opening tag of each list item.
+				 *
+				 * @since	1.9.10.1
+				 *
+				 * @param	string	$before_list_item	Tag before each list item. Can be defined in the Settings page.
+				 * @param	object	$result				Object of the current post result
+				 */
+				$output .= apply_filters( 'tptn_before_list_item', $before_list_item, $result );
+
+				/**
+				 * Filter the `rel` attribute each list item.
+				 *
+				 * @since	1.9.10.1
+				 *
+				 * @param	string	$rel_attribute	rel attribute
+				 * @param	object	$result			Object of the current post result
+				 */
+				$rel_attribute = apply_filters( 'tptn_rel_attribute', $rel_attribute, $result );
+
+				/**
+				 * Filter the target attribute each list item.
+				 *
+				 * @since	1.9.10.1
+				 *
+				 * @param	string	$target_attribute	target attribute
+				 * @param	object	$result				Object of the current post result
+				 */
+				$target_attribute = apply_filters( 'tptn_rel_attribute', $target_attribute, $result );
+
+
+				if ( 'after' == $post_thumb_op ) {
+					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . ' class="tptn_link">'; // Add beginning of link
+					$output .= '<span class="tptn_title">' . $post_title . '</span>'; // Add title if post thumbnail is to be displayed after
+					$output .= '</a>'; // Close the link
+				}
+
+				if ( 'inline' == $post_thumb_op || 'after' == $post_thumb_op || 'thumbs_only' == $post_thumb_op ) {
+					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . ' class="tptn_link">'; // Add beginning of link
+
+					$output .= tptn_get_the_post_thumbnail( array(
+						'postid' => $postid,
+						'thumb_height' => $thumb_height,
+						'thumb_width' => $thumb_width,
+						'thumb_meta' => $thumb_meta,
+						'thumb_html' => $thumb_html,
+						'thumb_default' => $thumb_default,
+						'thumb_default_show' => $thumb_default_show,
+						'scan_images' => $scan_images,
+						'class' => "tptn_thumb",
+					) );
+
+					$output .= '</a>'; // Close the link
+				}
+
+				if ( 'inline' == $post_thumb_op || 'text_only' == $post_thumb_op ) {
+					$output .= '<span class="tptn_after_thumb">';
+					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . ' class="tptn_link">'; // Add beginning of link
+					$output .= '<span class="tptn_title">' . $post_title . '</span>'; // Add title when required by settings
+					$output .= '</a>'; // Close the link
+				}
+
+				if ( $show_author ) {
+					$author_info = get_userdata( $result->post_author );
+					$author_name = ucwords( trim( stripslashes( $author_info->display_name ) ) );
+					$author_link = get_author_posts_url( $author_info->ID );
+
+					/**
+					 * Filter the author name.
+					 *
+					 * @since	1.9.1
+					 *
+					 * @param	string	$author_name	Proper name of the post author.
+					 * @param	object	$author_info	WP_User object of the post author
+					 */
+					$author_name = apply_filters( 'tptn_author_name', $author_name, $author_info );
+
+					$tptn_author = '<span class="tptn_author"> ' . __( ' by ', TPTN_LOCAL_NAME ).'<a href="' . $author_link . '">' . $author_name . '</a></span> ';
+
+					/**
+					 * Filter the text with the author details.
+					 *
+					 * @since	2.0.0
+					 *
+					 * @param	string	$tptn_author	Formatted string with author details and link
+					 * @param	object	$author_info	WP_User object of the post author
+					 */
+					$tptn_author = apply_filters( 'tptn_author', $tptn_author, $author_info );
+
+					$output .= $tptn_author;
+				}
+
+				if ( $show_date ) {
+					$output .= '<span class="tptn_date"> ' . mysql2date( get_option( 'date_format', 'd/m/y' ), $result->post_date ).'</span> ';
+				}
+
+				if ( $show_excerpt ) {
+					$output .= '<span class="tptn_excerpt"> ' . tptn_excerpt( $postid, $excerpt_length ).'</span>';
+				}
+
+				if ( $disp_list_count ) {
+
+					$tptn_list_count = '(' . number_format_i18n( $sumcount ) . ')';
+
+					/**
+					 * Filter the formatted list count text.
+					 *
+					 * @since	2.1.0
+					 *
+					 * @param	string	$tptn_list_count	Formatted list count
+					 * @param	int		$sumcount			Post count
+					 * @param	object	$result				Post object
+					 */
+					$tptn_list_count = apply_filters( 'tptn_list_count', $tptn_list_count, $sumcount, $result );
+
+					$output .= ' <span class="tptn_list_count">' . $tptn_list_count . '</span>';
+				}
+
+				if ( 'inline' == $post_thumb_op || 'text_only' == $post_thumb_op ) {
+					$output .= '</span>';
+				}
+
+				/**
+				 * Filter the closing tag of each list item.
+				 *
+				 * @since	1.9.10.1
+				 *
+				 * @param	string	$after_list_item	Tag after each list item. Can be defined in the Settings page.
+				 * @param	object	$result	Object of the current post result
+				 */
+				$output .= apply_filters( 'tptn_after_list_item', $after_list_item, $result );
+
+				$counter++;
+			}
+			if ( $counter == $limit ) {
+				break;	// End loop when related posts limit is reached
+			}
+		}
+		if ( $show_credit ) {
+
+			/** This filter is documented in contextual-related-posts.php */
+			$output .= apply_filters( 'tptn_before_list_item', $before_list_item, $result );
+
+			$output .= sprintf(
+				__( 'Popular posts by <a href="%s" rel="nofollow" %s>Top 10 plugin</a>', TPTN_LOCAL_NAME ),
+				esc_url( 'http://ajaydsouza.com/wordpress/plugins/top-10/' ),
+				$target_attribute
+			);
+
+			/** This filter is documented in contextual-related-posts.php */
+			$output .= apply_filters( 'tptn_after_list_item', $after_list_item, $result );
+		}
+
+		/**
+		 * Filter the closing tag of the related posts list
+		 *
+		 * @since	1.9.10.1
+		 *
+		 * @param	string	$after_list	Closing tag set in the Settings Page
+		 */
+		$output .= apply_filters( 'tptn_after_list', $after_list );
+	} else {
+		$output .= ( $blank_output ) ? '' : $blank_output_text;
+	}
+	$output .= '</div>';
+
+	/**
+	 * Filter the output
+	 *
+	 * @since	1.9.8.5
+	 *
+	 * @param	string	$output	Formatted list of top posts
+	 */
+	return apply_filters( 'tptn_pop_posts', $output, $args );
+}
+
+
+/**
+ * Function to retrieve the popular posts.
+ *
+ * @since	2.1.0
+ *
+ * @param	mixed	$args	Arguments list
+ */
+function get_tptn_pop_posts( $args = array() ) {
+	global $wpdb, $id, $tptn_settings;
+
+	// Initialise some variables
+	$fields = '';
+	$where = '';
+	$join = '';
+	$groupby = '';
+	$orderby = '';
+	$limits = '';
+	$match_fields = '';
+
+	$defaults = array(
+		'daily' => FALSE,
+		'strict_limit' => FALSE,
+		'posts_only' =>	FALSE,
+	);
+
+	// Merge the $defaults array with the $tptn_settings array
+	$defaults = array_merge( $defaults, $tptn_settings );
+
+	// Parse incomming $args into an array and merge it with $defaults
+	$args = wp_parse_args( $args, $defaults );
+
+	// Declare each item in $args as its own variable i.e. $type, $before.
+	extract( $args, EXTR_SKIP );
 
 	if ( $daily ) {
 		$table_name = $wpdb->base_prefix . "top_ten_daily";
@@ -642,7 +972,7 @@ function tptn_pop_posts( $args ) {
 	 *
 	 * @param string   $join  The JOIN clause of the query.
 	 */
-		$join = apply_filters( 'tptn_posts_join', $join );
+	$join = apply_filters( 'tptn_posts_join', $join );
 
 	/**
 	 * Filter the WHERE clause of the query.
@@ -683,8 +1013,7 @@ function tptn_pop_posts( $args ) {
 	$sql = "SELECT $fields FROM {$table_name} $join WHERE 1=1 $where $groupby $orderby $limits";
 
 	if ( $posts_only ) {	// Return the array of posts only if the variable is set
-
-		$tptn_pop_posts_array = $wpdb->get_results( $sql , ARRAY_A );
+		$results = $wpdb->get_results( $sql, ARRAY_A );
 
 		/**
 		 * Filter the array of top post IDs.
@@ -692,271 +1021,22 @@ function tptn_pop_posts( $args ) {
 		 * @since	1.9.8.5
 		 *
 		 * @param	array   $tptn_pop_posts_array	Posts array.
+		 * @param	mixed	$args		Arguments list
 		 */
-		return apply_filters( 'tptn_pop_posts_array', $tptn_pop_posts_array );
+		return apply_filters( 'tptn_pop_posts_array', $results, $args );
 	}
 
 	$results = $wpdb->get_results( $sql );
 
-	$counter = 0;
-
-	$output = '';
-
-	$shortcode_class = $is_shortcode ? ' tptn_posts_shortcode' : '';
-	$widget_class = $is_widget ? ' tptn_posts_widget' : '';
-
-	if ( $heading ) {
-		if ( ! $daily ) {
-			$output .= '<div id="tptn_related" class="tptn_posts ' . $widget_class . $shortcode_class . '">';
-
-			/**
-			 * Filter the title of the Top posts.
-			 *
-			 * @since	1.9.5
-			 *
-			 * @param	string   $title	Title of the popular posts.
-			 */
-			$output .= apply_filters( 'tptn_heading_title', $title );
-		} else {
-			$output .= '<div id="tptn_related_daily" class="tptn_posts_daily' . $shortcode_class . '">';
-
-			/**
-			 * Filter the title of the Top posts.
-			 *
-			 * @since	1.9.5
-			 *
-			 * @param	string   $title	Title of the popular posts.
-			 */
-			$output .= apply_filters( 'tptn_heading_title', $title_daily );
-		}
-	} else {
-		if ( ! $daily ) {
-			$output .= '<div class="tptn_posts' . $widget_class . $shortcode_class . '">';
-		} else {
-			$output .= '<div class="tptn_posts_daily' . $widget_class . $shortcode_class . '">';
-		}
-	}
-
-	if ( $results ) {
-
-		/**
-		 * Filter the opening tag of the popular posts list
-		 *
-		 * @since	1.9.10.1
-		 *
-		 * @param	string	$before_list	Opening tag set in the Settings Page
-		 */
-		$output .= apply_filters( 'tptn_before_list', $before_list );
-
-		foreach ( $results as $result ) {
-			$sumcount = $result->sumCount;
-
-			$result = get_post( $result->ID );	// Let's get the Post using the ID
-
-			/**
-			 * Filter the post ID for each result. Allows a custom function to hook in and change the ID if needed.
-			 *
-			 * @since	1.9.8.5
-			 *
-			 * @param	int	$result->ID	ID of the post
-			 */
-			$postid = apply_filters( 'tptn_post_id', $result->ID );
-
-			/**
-			 * Filter the post ID for each result. This filtered ID is passed as a parameter to fetch categories.
-			 *
-			 * This is useful since you might want to fetch a different set of categories for a linked post ID,
-			 * typically in the case of plugins that let you set mutiple languages
-			 *
-			 * @since	1.9.8.5
-			 *
-			 * @param	int	$result->ID	ID of the post
-			 */
-			$categorys = get_the_category( apply_filters( 'tptn_post_cat_id', $result->ID ) );	//Fetch categories of the plugin
-
-			$p_in_c = false;	// Variable to check if post exists in a particular category
-
-			foreach ( $categorys as $cat ) {	// Loop to check if post exists in excluded category
-				$p_in_c = ( in_array( $cat->cat_ID, $exclude_categories ) ) ? true : false;
-				if ( $p_in_c ) break;	// End loop if post found in category
-			}
-
-			$post_title = tptn_max_formatted_content( get_the_title( $postid ), $title_length );
-
-			/**
-			 * Filter the post title of each list item.
-			 *
-			 * @since	2.0.0
-			 *
-			 * @param	string	$post_title	Post title in the list.
-			 * @param	object	$result	Object of the current post result
-			 */
-			$post_title = apply_filters( 'tptn_post_title', $post_title, $result );
-
-
-			if ( ! $p_in_c ) {
-
-				/**
-				 * Filter the opening tag of each list item.
-				 *
-				 * @since	1.9.10.1
-				 *
-				 * @param	string	$before_list_item	Tag before each list item. Can be defined in the Settings page.
-				 * @param	object	$result				Object of the current post result
-				 */
-				$output .= apply_filters( 'tptn_before_list_item', $before_list_item, $result );
-
-				/**
-				 * Filter the `rel` attribute each list item.
-				 *
-				 * @since	1.9.10.1
-				 *
-				 * @param	string	$rel_attribute	rel attribute
-				 * @param	object	$result			Object of the current post result
-				 */
-				$rel_attribute = apply_filters( 'tptn_rel_attribute', $rel_attribute, $result );
-
-				/**
-				 * Filter the target attribute each list item.
-				 *
-				 * @since	1.9.10.1
-				 *
-				 * @param	string	$target_attribute	target attribute
-				 * @param	object	$result				Object of the current post result
-				 */
-				$target_attribute = apply_filters( 'tptn_rel_attribute', $target_attribute, $result );
-
-
-				if ( 'after' == $post_thumb_op ) {
-					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . 'class="tptn_link">'; // Add beginning of link
-					$output .= '<span class="tptn_title">' . $post_title . '</span>'; // Add title if post thumbnail is to be displayed after
-					$output .= '</a>'; // Close the link
-				}
-
-				if ( 'inline' == $post_thumb_op || 'after' == $post_thumb_op || 'thumbs_only' == $post_thumb_op ) {
-					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . 'class="tptn_link">'; // Add beginning of link
-
-					$output .= tptn_get_the_post_thumbnail( array(
-						'postid' => $postid,
-						'thumb_height' => $thumb_height,
-						'thumb_width' => $thumb_width,
-						'thumb_meta' => $thumb_meta,
-						'thumb_html' => $thumb_html,
-						'thumb_default' => $thumb_default,
-						'thumb_default_show' => $thumb_default_show,
-						'thumb_timthumb' => $thumb_timthumb,
-						'thumb_timthumb_q' => $thumb_timthumb_q,
-						'scan_images' => $scan_images,
-						'class' => "tptn_thumb",
-						'filter' => "tptn_postimage",
-					) );
-
-					$output .= '</a>'; // Close the link
-				}
-
-				if ( 'inline' == $post_thumb_op || 'text_only' == $post_thumb_op ) {
-					$output .= '<span class="tptn_after_thumb">';
-					$output .= '<a href="' . get_permalink( $postid ) . '" rel="' . $rel_attribute . '" ' . $target_attribute . 'class="tptn_link">'; // Add beginning of link
-					$output .= '<span class="tptn_title">' . $post_title . '</span>'; // Add title when required by settings
-					$output .= '</a>'; // Close the link
-				}
-
-				if ( $show_author ) {
-					$author_info = get_userdata( $result->post_author );
-					$author_name = ucwords( trim( stripslashes( $author_info->display_name ) ) );
-					$author_link = get_author_posts_url( $author_info->ID );
-
-					/**
-					 * Filter the author name.
-					 *
-					 * @since	1.9.1
-					 *
-					 * @param	string	$author_name	Proper name of the post author.
-					 * @param	object	$author_info	WP_User object of the post author
-					 */
-					$author_name = apply_filters( 'tptn_author_name', $author_name, $author_info );
-
-					$tptn_author = '<span class="tptn_author"> ' . __( ' by ', TPTN_LOCAL_NAME ).'<a href="' . $author_link . '">' . $author_name . '</a></span> ';
-
-					/**
-					 * Filter the text with the author details.
-					 *
-					 * @since	2.0.0
-					 *
-					 * @param	string	$tptn_author	Formatted string with author details and link
-					 * @param	object	$author_info	WP_User object of the post author
-					 */
-					$tptn_author = apply_filters( 'tptn_author', $tptn_author, $author_info );
-
-					$output .= $tptn_author;
-				}
-
-				if ( $show_date ) {
-					$output .= '<span class="tptn_date"> ' . mysql2date( get_option( 'date_format', 'd/m/y' ), $result->post_date ).'</span> ';
-				}
-
-				if ( $show_excerpt ) {
-					$output .= '<span class="tptn_excerpt"> ' . tptn_excerpt( $postid, $excerpt_length ).'</span>';
-				}
-
-				if ( $disp_list_count ) {
-					$output .= ' <span class="tptn_list_count">(' . number_format_i18n( $sumcount ) . ')</span>';
-				}
-
-				if ( 'inline' == $post_thumb_op || 'text_only' == $post_thumb_op ) {
-					$output .= '</span>';
-				}
-
-				/**
-				 * Filter the closing tag of each list item.
-				 *
-				 * @since	1.9.10.1
-				 *
-				 * @param	string	$after_list_item	Tag after each list item. Can be defined in the Settings page.
-				 * @param	object	$result	Object of the current post result
-				 */
-				$output .= apply_filters( 'tptn_after_list_item', $after_list_item, $result );
-
-				$counter++;
-			}
-			if ( $counter == $limit/5 ) break;	// End loop when related posts limit is reached
-		}
-		if ( $show_credit ) {
-
-			/** This filter is documented in contextual-related-posts.php */
-			$output .= apply_filters( 'tptn_before_list_item', $before_list_item, $result );
-
-			$output .= sprintf(
-				__( 'Popular posts by <a href="%s" rel="nofollow" %s>Top 10 plugin</a>', TPTN_LOCAL_NAME ),
-				esc_url( 'http://ajaydsouza.com/wordpress/plugins/top-10/' ),
-				$target_attribute
-			);
-
-			/** This filter is documented in contextual-related-posts.php */
-			$output .= apply_filters( 'tptn_after_list_item', $after_list_item, $result );
-		}
-
-		/**
-		 * Filter the closing tag of the related posts list
-		 *
-		 * @since	1.9.10.1
-		 *
-		 * @param	string	$after_list	Closing tag set in the Settings Page
-		 */
-		$output .= apply_filters( 'tptn_after_list', $after_list );
-	} else {
-		$output .= ( $blank_output ) ? '' : $blank_output_text;
-	}
-	$output .= '</div>';
-
 	/**
-	 * Filter the output
+	 * Filter object containing post IDs of popular posts
 	 *
-	 * @since	1.9.8.5
+	 * @since	2.1.0
 	 *
-	 * @param	string	$output	Formatted list of top posts
+	 * @param	object	$results	Top 10 popular posts object
+	 * @param	mixed	$args		Arguments list
 	 */
-	return apply_filters( 'tptn_pop_posts', $output, $args );
+	return apply_filters( 'get_tptn_pop_posts', $results, $args );
 }
 
 
@@ -964,6 +1044,8 @@ function tptn_pop_posts( $args ) {
  * Function to echo popular posts.
  *
  * @since	1.0
+ *
+ * @param	mixed	$args	Arguments list
  */
 function tptn_show_pop_posts( $args = NULL ) {
 	echo tptn_pop_posts( $args );
@@ -974,15 +1056,17 @@ function tptn_show_pop_posts( $args = NULL ) {
  * Function to show daily popular posts.
  *
  * @since	1.2
+ *
+ * @param	mixed	$args	Arguments list
  */
-function tptn_show_daily_pop_posts() {
-	global $tptn_url, $tptn_settings;
-
-	if ( $tptn_settings['d_use_js'] ) {
-		echo '<script type="text/javascript" src="' . $tptn_url . '/top-10-daily.js.php?widget=1"></script>';
+function tptn_show_daily_pop_posts( $args = NULL ) {
+	if ( is_array( $args ) ) {
+		$args['daily'] = 1;
 	} else {
-		echo tptn_pop_posts( 'daily=1&is_widget=0' );
+		$args .= '&daily=1';
 	}
+
+	tptn_show_pop_posts( $args );
 }
 
 
@@ -1091,8 +1175,6 @@ function tptn_default_options() {
 		'title_length' => '60',		// Limit length of post title
 		'disp_list_count' => true,		// Display count in popular lists?
 
-		'd_use_js' => false,				// Use JavaScript for displaying daily posts	- TO BE DEPRECATED
-
 		'link_new_window' => false,			// Open link in new window - Includes target="_blank" to links
 		'link_nofollow' => false,			// Includes rel="nofollow" to links
 		'exclude_on_post_ids' => '', 	// Comma separate list of page/post IDs to not display related posts on
@@ -1110,9 +1192,6 @@ function tptn_default_options() {
 		'thumb_height' => '150',			// Max height of thumbnails
 		'thumb_crop' => true,		// Crop mode. default is hard crop
 		'thumb_html' => 'html',		// Use HTML or CSS for width and height of the thumbnail?
-
-		'thumb_timthumb' => false,	// Use timthumb	- TO BE DEPRECATED
-		'thumb_timthumb_q' => '75',	// Quality attribute for timthumb	- TO BE DEPRECATED
 
 		'thumb_meta' => 'post-image',		// Meta field that is used to store the location of default thumbnail image
 		'scan_images' => true,			// Scan post for images
@@ -1233,7 +1312,7 @@ function tptn_single_activate() {
 		$sql = "CREATE TABLE " . $table_name . " (
 			postnumber bigint(20) NOT NULL,
 			cntaccess bigint(20) NOT NULL,
-			blog_id bigint(20) NOT NULL,
+			blog_id bigint(20) NOT NULL DEFAULT '1',
 			PRIMARY KEY  (postnumber, blog_id)
 			);";
 
@@ -1249,7 +1328,7 @@ function tptn_single_activate() {
 			postnumber bigint(20) NOT NULL,
 			cntaccess bigint(20) NOT NULL,
 			dp_date DATETIME NOT NULL,
-			blog_id bigint(20) NOT NULL,
+			blog_id bigint(20) NOT NULL DEFAULT '1',
 			PRIMARY KEY  (postnumber, dp_date, blog_id)
 		);";
 
@@ -1416,15 +1495,25 @@ function tptn_get_the_post_thumbnail( $args = array() ) {
 		'thumb_html' => 'html',		// HTML / CSS for width and height attributes
 		'thumb_default' => '',	// Default thumbnail image
 		'thumb_default_show' => true,	// Show default thumb if none found (if false, don't show thumb at all)
-		'thumb_timthumb' => true,	// Use timthumb
-		'thumb_timthumb_q' => '75',	// Quality attribute for timthumb
 		'scan_images' => false,			// Scan post for images
 		'class' => 'tptn_thumb',			// Class of the thumbnail
-		'filter' => 'tptn_postimage',			// Class of the thumbnail
 	);
 
 	// Parse incomming $args into an array and merge it with $defaults
 	$args = wp_parse_args( $args, $defaults );
+
+	// Issue notice for deprecated arguments
+	if ( isset( $args['thumb_timthumb'] ) ) {
+		_deprecated_argument( __FUNCTION__, '2.1', __( 'thumb_timthumb argument has been deprecated', TPTN_LOCAL_NAME ) );
+	}
+
+	if ( isset( $args['thumb_timthumb_q'] ) ) {
+		_deprecated_argument( __FUNCTION__, '2.1', __( 'thumb_timthumb_q argument has been deprecated', TPTN_LOCAL_NAME ) );
+	}
+
+	if ( isset( $args['filter'] ) ) {
+		_deprecated_argument( __FUNCTION__, '2.1', __( 'filter argument has been deprecated', TPTN_LOCAL_NAME ) );
+	}
 
 	// Declare each item in $args as its own variable i.e. $type, $before.
 	extract( $args, EXTR_SKIP );
@@ -1434,6 +1523,7 @@ function tptn_get_the_post_thumbnail( $args = array() ) {
 
 	$output = '';
 	$postimage = '';
+	$pick = '';
 
 	// Let's start fetching the thumbnail. First place to look is in the post meta defined in the Settings page
 	if ( ! $postimage ) {
@@ -1443,7 +1533,7 @@ function tptn_get_the_post_thumbnail( $args = array() ) {
 
 	// If there is no thumbnail found, check the post thumbnail
 	if ( ! $postimage ) {
-		if ( ( false != wp_get_attachment_image_src( get_post_thumbnail_id( $result->ID ) ) ) ) {
+		if ( false != get_post_thumbnail_id( $result->ID ) )  {
 			$postthumb = wp_get_attachment_image_src( get_post_thumbnail_id( $result->ID ), $tptn_settings['thumb_size'] );
 			$postimage = $postthumb[0];
 		}
@@ -1456,7 +1546,16 @@ function tptn_get_the_post_thumbnail( $args = array() ) {
 		if ( isset( $matches[1][0] ) && $matches[1][0] ) { 			// any image there?
 			$postimage = $matches[1][0]; // we need the first one only!
 		}
-		$pick = 'first';
+		if ( $postimage ) {
+			$postimage_id = tptn_get_attachment_id_from_url( $postimage );
+
+			if ( false != wp_get_attachment_image_src( $postimage_id, $tptn_settings['thumb_size'] ) ) {
+				$postthumb = wp_get_attachment_image_src( $postimage_id, $tptn_settings['thumb_size'] );
+				$postimage = $postthumb[0];
+			}
+			$pick = 'correct';
+		}
+		$pick .= 'first';
 	}
 
 	// If there is no thumbnail found, fetch the first child image
@@ -1479,13 +1578,38 @@ function tptn_get_the_post_thumbnail( $args = array() ) {
 	if ( $postimage ) {
 
 		/**
-		 * Get the first image in the post.
+		 * Filters the thumbnail image URL.
+		 *
+		 * Use this filter to modify the thumbnail URL that is automatically created
+		 * Before v2.1 this was used for cropping the post image using timthumb
+		 *
+		 * @since	2.1.0
+		 *
+		 * @param	string	$postimage		URL of the thumbnail image
+		 * @param	int		$thumb_width	Thumbnail width
+		 * @param	int		$thumb_height	Thumbnail height
+		 * @param	object	$result			Post Object
+		 */
+			$postimage = apply_filters( 'tptn_thumb_url', $postimage, $thumb_width, $thumb_height, $result );
+
+		/* Backward compatibility */
+		$thumb_timthumb = false;
+		$thumb_timthumb_q = 75;
+
+		/**
+		 * Filters the thumbnail image URL.
 		 *
 		 * @since 1.8.10
+		 * @deprecated	2.1.0	Use tptn_thumb_url instead.
 		 *
-		 * @param mixed $postID	Post ID
+		 * @param	string	$postimage		URL of the thumbnail image
+		 * @param	int		$thumb_width	Thumbnail width
+		 * @param	int		$thumb_height	Thumbnail height
+		 * @param	boolean	$thumb_timthumb	Enable timthumb?
+		 * @param	int		$thumb_timthumb_q	Quality of timthumb thumbnail.
+		 * @param	object	$result			Post Object
 		 */
-		$postimage = apply_filters( $filter, $postimage, $thumb_width, $thumb_height, $thumb_timthumb, $thumb_timthumb_q, $result );
+		$postimage = apply_filters( 'tptn_postimage', $postimage, $thumb_width, $thumb_height, $thumb_timthumb, $thumb_timthumb_q, $result );
 
 		if ( is_ssl() ) {
 		    $postimage = preg_replace( '~http://~', 'https://', $postimage );
@@ -1545,6 +1669,45 @@ function tptn_get_first_image( $postID ) {
 	} else {
 		return false;
 	}
+}
+
+
+/**
+ * Function to get the attachment ID from the attachment URL.
+ *
+ * @since 2.1
+ *
+ * @param	string	$attachment_url	Attachment URL
+ * @return	int		Attachment ID
+ */
+function tptn_get_attachment_id_from_url( $attachment_url = '' ) {
+
+	global $wpdb;
+	$attachment_id = false;
+
+	// If there is no url, return.
+	if ( '' == $attachment_url ) {
+		return;
+	}
+
+	// Get the upload directory paths
+	$upload_dir_paths = wp_upload_dir();
+
+	// Make sure the upload path base directory exists in the attachment URL, to verify that we're working with a media library image
+	if ( false !== strpos( $attachment_url, $upload_dir_paths['baseurl'] ) ) {
+
+		// If this is the URL of an auto-generated thumbnail, get the URL of the original image
+		$attachment_url = preg_replace( '/-\d+x\d+(?=\.(jpg|jpeg|png|gif)$)/i', '', $attachment_url );
+
+		// Remove the upload path base directory from the attachment URL
+		$attachment_url = str_replace( $upload_dir_paths['baseurl'] . '/', '', $attachment_url );
+
+		// Finally, run a custom database query to get the attachment ID from the modified attachment URL
+		$attachment_id = $wpdb->get_var( $wpdb->prepare( "SELECT wposts.ID FROM $wpdb->posts wposts, $wpdb->postmeta wpostmeta WHERE wposts.ID = wpostmeta.post_id AND wpostmeta.meta_key = '_wp_attached_file' AND wpostmeta.meta_value = '%s' AND wposts.post_type = 'attachment'", $attachment_url ) );
+
+	}
+
+	return apply_filters( 'tptn_get_attachment_id_from_url', $attachment_id, $attachment_url );
 }
 
 
@@ -1796,8 +1959,40 @@ function tptn_get_all_image_sizes( $size = '' ) {
 			return false;
         }
     }
+
+	/**
+	 * Filters array of image sizes.
+	 *
+	 * @since	2.0.0
+	 *
+	 * @param	array	$sizes	Image sizes
+	 */
 	return apply_filters( 'tptn_get_all_image_sizes', $sizes );
 }
+
+
+/**
+ * Returns the object identifier for the current language (WPML).
+ *
+ * @since	2.1.0
+ *
+ * @param	$post_id	Post ID
+ */
+function tptn_object_id_cur_lang( $post_id ) {
+    if ( function_exists( 'icl_object_id' ) ) {
+        $post_id = icl_object_id( $post_id, 'any', true, ICL_LANGUAGE_CODE );
+	}
+
+	/**
+	 * Filters object ID for current language (WPML).
+	 *
+	 * @since	2.1.0
+	 *
+	 * @param	int	$post_id	Post ID
+	 */
+	return apply_filters( 'tptn_object_id_cur_lang', $post_id );
+}
+
 
 /*----------------------------------------------------------------------------*
  * WordPress widget

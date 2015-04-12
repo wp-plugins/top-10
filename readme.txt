@@ -3,7 +3,7 @@ Tags: popular posts, top 10, counter, top posts, daily popular, page views, stat
 Contributors: Ajay
 Donate link: http://ajaydsouza.com/donate/
 Stable tag: trunk
-Requires at least: 3.3
+Requires at least: 3.5
 Tested up to: 4.2
 License: GPLv2 or later
 
@@ -34,10 +34,19 @@ Includes a sidebar widget to display the popular posts. And, all settings can be
 * **Exclusions**: Exclude posts from select categories from appearing in the top posts list. Also exclude posts by ID from appearing in the list
 * **Admin interface**: View list of daily and/or overall popular posts from within the dashboard. Top 10 will also add two sortable columns to your All Posts and All Pages pages in your WordPress Admin area
 * **Works with caching plugins** like WP-Super-Cache, W3 Total Cache or Quick Cache
-* **Clean uninstall**: If you choose to delete the plugin from within WP-Admin, the plugin will remove all its data. But why would you?
+* **Clean uninstall**: If you choose to delete the plugin from within WP-Admin, the plugin will remove all its data if you want. But why would you?
 
+If you're looking for a plugin to display related posts, look no further than <a href="http://ajaydsouza.com/wordpress/plugins/contextual-related-posts">Contextual Related Posts</a>.
 
-If you're looking for a plugin to display related, look no further than my other plugin <a href="http://ajaydsouza.com/wordpress/plugins/contextual-related-posts">Contextual Related Posts</a>.
+= Donations =
+
+I spend a significant amount of my free time maintaining, updating and more importantly supporting this plugin. Those who have sought support in the support forums know that I have done my best to answer your question and solve your problem.
+If you have been using this plugin and find this useful, do consider making a donation. This helps me pay for my hosting and domains.
+
+= Contribute =
+
+Top 10 is also available on Github at https://github.com/ajaydsouza/top-10
+So, if you've got some cool feature that you'd like to implement into the plugin or a bug you've been able to fix, consider forking the project and sending me a pull request.
 
 
 == Screenshots ==
@@ -51,15 +60,30 @@ If you're looking for a plugin to display related, look no further than my other
 7. Top 10 widget options
 8. Top 10 Meta box on the Edit Post screen
 9. WordPress Multisite: Import Top 10 v1.x counts
-
+10. Reset count and tools
 
 == Upgrade Notice ==
 
-= 2.0.3 =
-* Fixed: Metabox update did not work properly in v2.0; New option to keep data on uninstall.
-
+= 2.1.0 =
+* Fixed: Bug fixes; New button to merge post counts; deprecated timthumb;
+Check the Changelog for more details
 
 == Changelog ==
+
+= 2.1.0 =
+* New: Button in Top 10 settings page to merge posts across blog ID 0 and 1
+* New: Function & filter `get_tptn_pop_posts` that can be used to fetch the popular posts as an object or array. Perfect if you want to write custom code in your theme
+* New: Support for WPML to return the correct language ID. Thanks to Tony Flags' <a href="https://wordpress.org/support/topic/top-10-and-languages-in-wpml?replies=11#post-6622085">code snippet</a>.
+* New: Filter `tptn_list_count` to modify the formatted list count. See a <a href="https://gist.github.com/ajaydsouza/9f04c26814414a57fab4">working example</a>
+* New: Post types can now be selected in the widget. This allows you to select top posts by post type
+* Modified: Plugin will attempt to pull the correct size image when fetching the first image in a post
+* Modified: Deprecated "Always display latest post count in the daily lists"
+* Modified: timthumb has been deprecated. The script is no longer packaged within Top 10
+* Fixed: Bug in tracking code when not using Ajax
+* Fixed: Bug in admin column did not check for the blog_id
+* Fixed: Bug where default thumbnail location was not correctly saved
+* Fixed: Incorrect thumbnail was pulled on attachment pages
+* Fixed: blog_id column of the database is correctly initialised as `DEFAULT '1'`
 
 = 2.0.3 =
 * New: Options to choose if you want to delete the Top 10 options and/or data when deleting the plugin
@@ -335,9 +359,9 @@ The plugin also provides you with a set of CSS classes that allow you to style y
 
 The following CSS classes / IDs are available:
 
-* **tptn_related**: ID of the main wrapper `div`. This is only displayed on singular pages, i.e. post, page and attachment
+* **tptn_related**: ID of the main wrapper `div`
 
-* **tptn_related**: Class of the main wrapper `div`. If you are displaying the related posts on non-singular pages, then you should style this
+* **tptn_posts** and **tptn_posts_daily**: Class of the main wrapper `div`. If you are displaying the related posts on non-singular pages, then you should style this
 
 * **tptn_title**: Class of the `span` tag for title of the post
 
@@ -375,32 +399,6 @@ You can also display the number of visits using the `[tptn_views]` shortcode. Th
 *daily* : If set to 1, then the shortcode will return the number of _daily_ views
 
 
-= Filters =
-
-The plugin includes the following filters that allows you to customise the output for several section using <a href="http://codex.wordpress.org/Function_Reference/add_filter">add_filter</a>.
-
-*tptn_heading_title* : Filter for heading title of the posts. This is the text that you enter under *Output options > Title of related posts*
-
-*tptn_title* : Filter for the post title for each of the related posts
-
-I'll be adding more filters eventually. If you are looking for any particular filter do raise a post in the <a href="http://wordpress.org/support/plugin/contextual-related-posts">support forum</a> requesting the same.
-
-= How does the plugin select thumbnails? =
-
-The plugin selects thumbnails in the following order:
-
-1. Post Thumbnail image: The image that you can set while editing your post in WordPress &raquo; New Post screen
-
-2. Post meta field: This is the meta field value you can use when editing your post. The default is `post-image`
-
-3. First image in the post: The plugin will try to fetch the first image in the post
-
-3. Video Thumbnails: Meta field set by <a href="https://wordpress.org/extend/plugins/video-thumbnails/">Video Thumbnails</a>
-
-4. Default Thumbnail: If enabled, it will use the default thumbnail that you specify in the Settings screen
-
-The plugin uses <a href="http://www.binarymoon.co.uk/projects/timthumb/">timthumb</a> to generate thumbnails by default. Depending on the configuration of your webhost you might run into certain problems. Please check out <a href="http://www.binarymoon.co.uk/2010/11/timthumb-hints-tips/">the timthumb troubleshooting page</a> regarding permission settings for the folder and files.
-
 = Manual install =
 
 You may choose to not display the post count automatically. If you do so, then in order to display the post count, you will need to add `<?php if(function_exists('echo_tptn_post_count')) echo_tptn_post_count(); ?>`.
@@ -413,9 +411,9 @@ You can also use the WordPress Widgets to display the popular posts in your side
 
 = Can this plugin replace Google Analytics? =
 
-Never. This plugin is designed to only track the number of pageviews on your blog posts and display the same. It cannot replace Google Analytics or any other full fledged statistics application.
+No. Top 10 has been designed to only track the number of pageviews on your blog posts and display the same. It cannot replace Google Analytics or any other full fledged statistics application.
 
-= How does the scheduled maintenance work maintenance work? =
+= How does the scheduled maintenance work? =
 
 When you enabled the scheduled maintenance, Top 10 will create a cron job that will run at a predefined interval and truncate the `wp_top_ten_daily` table.
 *Note: If you enable this option, WordPress will execute this job when it is scheduled the first time*

@@ -26,15 +26,17 @@ if ( ! defined( 'WPINC' ) ) {
 function tptn_options() {
 
 	global $wpdb, $network_wide, $tptn_url;
-    $poststable = $wpdb->posts;
 
 	$tptn_settings = tptn_read_options();
-	parse_str( $tptn_settings['post_types'],$post_types );
+
+	/* Parse post types */
+	parse_str( $tptn_settings['post_types'], $post_types );
 	$wp_post_types	= get_post_types( array(
 		'public'	=> true,
 	) );
 	$posts_types_inc = array_intersect( $wp_post_types, $post_types );
 
+	/* Save options has been triggered */
 	if ( ( isset( $_POST['tptn_save'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 
 		/* General options */
@@ -107,8 +109,6 @@ function tptn_options() {
 		$tptn_settings['title_length'] = intval( $_POST['title_length'] );
 		$tptn_settings['disp_list_count'] = isset( $_POST['disp_list_count'] ) ? true : false;
 
-		$tptn_settings['d_use_js'] = isset( $_POST['d_use_js'] ) ? true : false;	// This needs to be deprecated
-
 		$tptn_settings['link_new_window'] = isset( $_POST['link_new_window'] ) ? true : false;
 		$tptn_settings['link_nofollow'] = isset( $_POST['link_nofollow'] ) ? true : false;
 		$tptn_settings['exclude_on_post_ids'] = $_POST['exclude_on_post_ids'] == '' ? '' : implode( ',', array_map( 'intval', explode( ",", $_POST['exclude_on_post_ids'] ) ) );
@@ -127,17 +127,15 @@ function tptn_options() {
 		$tptn_settings['thumb_crop'] = ( isset( $_POST['thumb_crop'] ) ? true : false );
 		$tptn_settings['thumb_html'] = $_POST['thumb_html'];
 
-		$tptn_settings['thumb_timthumb'] = isset( $_POST['thumb_timthumb'] ) ? true : false;	// To be deprecated
-		$tptn_settings['thumb_timthumb_q'] = intval( $_POST['thumb_timthumb_q'] );				// To be deprecated
-
 		$tptn_settings['thumb_meta'] = '' == $_POST['thumb_meta'] ? 'post-image' : $_POST['thumb_meta'];
 		$tptn_settings['scan_images'] = isset( $_POST['scan_images'] ) ? true : false;
 		$tptn_settings['thumb_default_show'] = isset( $_POST['thumb_default_show'] ) ? true : false;
-		$tptn_settings['thumb_default'] = ( ( '' == $_POST['thumb_default'] ) || ( '\/default.png' == $_POST['thumb_default'] ) ) ? $_POST['thumb_default'] : $tptn_url . '/default.png';
+		$tptn_settings['thumb_default'] = ( ( '' == $_POST['thumb_default'] ) || ( "/default.png" == $_POST['thumb_default'] ) ) ? $tptn_url . '/default.png' : $_POST['thumb_default'];
 
 		/* Custom styles */
 		$tptn_settings['custom_CSS'] = wp_kses_post( $_POST['custom_CSS'] );
 
+		/* If default style is selected, enforce fixed width, height of thumbnail. Disable author, excerpt and date display */
 		if ( isset( $_POST['include_default_style'] ) ) {
 			$tptn_settings['include_default_style'] = true;
 			$tptn_settings['post_thumb_op'] = 'inline';
@@ -151,6 +149,16 @@ function tptn_options() {
 			$tptn_settings['include_default_style'] = false;
 		}
 
+		/**
+		 * Filter the settings array just before saving them to the database
+		 *
+		 * @since	2.0.4
+		 *
+		 * @param	array	$tptn_settings	Settings array
+		 */
+		$tptn_settings = apply_filters( 'tptn_save_options', $tptn_settings );
+
+
 		/* Update the options */
 		update_option( 'ald_tptn_settings', $tptn_settings );
 
@@ -160,10 +168,19 @@ function tptn_options() {
 		$posts_types_inc = array_intersect( $wp_post_types, $post_types );
 
 		/* Echo a success message */
-		$str = '<div id="message" class="updated fade"><p>'. __( 'Options saved successfully.', TPTN_LOCAL_NAME ) . '</p></div>';
+		$str = '<div id="message" class="updated fade"><p>'. __( 'Options saved successfully.', TPTN_LOCAL_NAME ) . '</p>';
+
+		if ( isset( $_POST['include_default_style'] ) ) {
+			$str .= '<p>'. __( 'Default styles selected. Thumbnail width, height and crop settings have been fixed. Author, Excerpt and Date will not be displayed.', TPTN_LOCAL_NAME ) . '</p>';
+
+		}
+
+		$str .= '</div>';
+
 		echo $str;
 	}
 
+	/* Default options has been triggered */
 	if ( ( isset( $_POST['tptn_default'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 		delete_option( 'ald_tptn_settings' );
 		$tptn_settings = tptn_default_options();
@@ -174,18 +191,21 @@ function tptn_options() {
 		echo $str;
 	}
 
+	/* Truncate overall posts table */
 	if ( ( isset( $_POST['tptn_trunc_all'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 		tptn_trunc_count( false );
 		$str = '<div id="message" class="updated fade"><p>'. __( 'Top 10 popular posts reset', TPTN_LOCAL_NAME ) .'</p></div>';
 		echo $str;
 	}
 
+	/* Truncate daily posts table */
 	if ( ( isset( $_POST['tptn_trunc_daily'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 		tptn_trunc_count( true );
 		$str = '<div id="message" class="updated fade"><p>'. __( 'Top 10 daily popular posts reset', TPTN_LOCAL_NAME ) .'</p></div>';
 		echo $str;
 	}
 
+	/* Clean duplicates */
 	if ( ( isset( $_POST['tptn_clean_duplicates'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 		tptn_clean_duplicates( true );
 		tptn_clean_duplicates( false );
@@ -193,6 +213,15 @@ function tptn_options() {
 		echo $str;
 	}
 
+	/* Merge blog IDs */
+	if ( ( isset( $_POST['tptn_merge_blogids'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
+		tptn_merge_blogids( true );
+		tptn_merge_blogids( false );
+		$str = '<div id="message" class="updated fade"><p>'. __( 'Post counts across blog IDs 0 and 1 have been merged', TPTN_LOCAL_NAME ) .'</p></div>';
+		echo $str;
+	}
+
+	/* Save maintenance options */
 	if ( ( isset( $_POST['tptn_mnts_save'] ) ) && ( check_admin_referer( 'tptn-plugin-settings' ) ) ) {
 		$tptn_settings['cron_hour'] = min( 23, intval( $_POST['cron_hour'] ) );
 		$tptn_settings['cron_min'] = min( 59, intval( $_POST['cron_min'] ) );
@@ -533,13 +562,15 @@ function tptn_options() {
 					<tr>
 						<th scope="row"><?php _e( 'Post types to include in results (including custom post types)', TPTN_LOCAL_NAME ); ?></th>
 						<td>
-							<?php foreach ( $wp_post_types as $wp_post_type ) {
-								$post_type_op = '<input type="checkbox" name="post_types[]" value="'.$wp_post_type.'" ';
-								if ( in_array( $wp_post_type, $posts_types_inc ) ) $post_type_op .= ' checked="checked" ';
-								$post_type_op .= ' />'.$wp_post_type.'&nbsp;&nbsp;';
-								echo $post_type_op;
-							}
-							?>
+							<?php foreach ( $wp_post_types as $wp_post_type ) { ?>
+
+								<label>
+									<input type="checkbox" name="post_types[]" value="<?php echo $wp_post_type; ?>" <?php if ( in_array( $wp_post_type, $posts_types_inc ) ) echo 'checked="checked"' ?> />
+									<?php echo $wp_post_type; ?>
+								</label>
+								<br />
+
+							<?php } ?>
 						</td>
 					</tr>
 					<tr>
@@ -597,6 +628,10 @@ function tptn_options() {
 						<th scope="row"><label for="show_excerpt"><?php _e( 'Show post excerpt in list?', TPTN_LOCAL_NAME ); ?></label></th>
 						<td>
 							<input type="checkbox" name="show_excerpt" id="show_excerpt" <?php if ( $tptn_settings['show_excerpt'] ) echo 'checked="checked"' ?> />
+
+							<?php if ( $tptn_settings['include_default_style'] ) { ?>
+								<p style="color: #F00"><?php _e( "Default style selected under the Custom Styles. Excerpt display is disabled.", TPTN_LOCAL_NAME ); ?></p>
+							<?php } ?>
 						</td>
 					</tr>
 					<tr>
@@ -609,12 +644,20 @@ function tptn_options() {
 						<th scope="row"><label for="show_author"><?php _e( 'Show post author in list?', TPTN_LOCAL_NAME ); ?></label></th>
 						<td>
 							<input type="checkbox" name="show_author" id="show_author" <?php if ( $tptn_settings['show_author'] ) echo 'checked="checked"' ?> />
+
+							<?php if ( $tptn_settings['include_default_style'] ) { ?>
+								<p style="color: #F00"><?php _e( "Default style selected under the Custom Styles. Author display is disabled.", TPTN_LOCAL_NAME ); ?></p>
+							<?php } ?>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="show_date"><?php _e( 'Show post date in list?', TPTN_LOCAL_NAME ); ?></label></th>
 						<td>
 							<input type="checkbox" name="show_date" id="show_date" <?php if ( $tptn_settings['show_date'] ) echo 'checked="checked"' ?> />
+
+							<?php if ( $tptn_settings['include_default_style'] ) { ?>
+								<p style="color: #F00"><?php _e( "Default style selected under the Custom Styles. Date display is disabled.", TPTN_LOCAL_NAME ); ?></p>
+							<?php } ?>
 						</td>
 					</tr>
 					<tr>
@@ -627,13 +670,6 @@ function tptn_options() {
 						<th scope="row"><label for="disp_list_count"><?php _e( 'Show view count in list?', TPTN_LOCAL_NAME ); ?></label></th>
 						<td>
 							<input type="checkbox" name="disp_list_count" id="disp_list_count" <?php if ( $tptn_settings['disp_list_count'] ) echo 'checked="checked"' ?> />
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="d_use_js"><?php _e( 'Always display latest post count in the daily lists?', TPTN_LOCAL_NAME ); ?></label></th>
-						<td>
-							<input type="checkbox" name="d_use_js" id="d_use_js" <?php if ( $tptn_settings['d_use_js'] ) echo 'checked="checked"' ?> />
-							<p class="description"><?php _e( 'This option uses JavaScript and will increase your page load time. When you enable this option, the daily widget will not use the options set there, but options will need to be set on this screen.', TPTN_LOCAL_NAME ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -739,6 +775,10 @@ function tptn_options() {
 								<input type="radio" name="post_thumb_op" value="text_only" id="post_thumb_op_3" <?php if ( 'text_only' == $tptn_settings['post_thumb_op'] ) echo 'checked="checked"' ?> />
 								<?php _e( 'Do not display thumbnails, only text.', TPTN_LOCAL_NAME ); ?>
 							</label>
+
+							<?php if ( $tptn_settings['include_default_style'] ) { ?>
+								<p style="color: #F00"><?php _e( "Default style selected under the Custom Styles. Location of thumbnail forced to be inline before title", TPTN_LOCAL_NAME ); ?></p>
+							<?php } ?>
 						</td>
 					</tr>
 					<tr><th scope="row"><?php _e( 'Thumbnail size:', TPTN_LOCAL_NAME ); ?></th>
@@ -770,7 +810,7 @@ function tptn_options() {
 								<p class="description">
 									<?php _e( 'You can choose from existing image sizes above or create a custom size. If you have chosen Custom size above, then enter the width, height and crop settings below. For best results, use a cropped image.', TPTN_LOCAL_NAME ); ?><br />
 									<?php _e( "If you change the width and/or height below, existing images will not be automatically resized.", TPTN_LOCAL_NAME ); ?>
-									<?php printf( __( "I recommend using <a href='%s' target='_blank'>Force Regenerate Thumbnails</a> or <a href='%s' target='_blank'>Force Regenerate Thumbnails</a> to regenerate all image sizes.", TPTN_LOCAL_NAME ), 'https://wordpress.org/plugins/force-regenerate-thumbnails/', 'https://wordpress.org/plugins/regenerate-thumbnails/' ); ?>
+									<?php printf( __( "I recommend using <a href='%s' class='thickbox'>OTF Regenerate Thumbnails</a> or <a href='%s' class='thickbox'>Regenerate Thumbnails</a> to regenerate all image sizes.", TPTN_LOCAL_NAME ), self_admin_url( 'plugin-install.php?tab=plugin-information&amp;plugin=otf-regenerate-thumbnails&amp;TB_iframe=true&amp;width=600&amp;height=550' ), self_admin_url( 'plugin-install.php?tab=plugin-information&amp;plugin=regenerate-thumbnails&amp;TB_iframe=true&amp;width=600&amp;height=550' ) ); ?>
 								</p>
 						</td>
 					<tr><th scope="row"><label for="thumb_width"><?php _e( 'Width of custom thumbnail:', TPTN_LOCAL_NAME ); ?></label></th>
@@ -789,8 +829,9 @@ function tptn_options() {
 							<p class="description">
 								<?php _e( "By default, thumbnails will be proportionately cropped. Check this box to hard crop the thumbnails.", TPTN_LOCAL_NAME ); ?>
 								<?php printf( __( "<a href='%s' target='_blank'>Difference between soft and hard crop</a>", TPTN_LOCAL_NAME ), esc_url( 'http://www.davidtan.org/wordpress-hard-crop-vs-soft-crop-difference-comparison-example/' ) ); ?>
+
 								<?php if ( $tptn_settings['include_default_style'] ) { ?>
-									<p class="description"><?php _e( "Since you're using the default styles set under the Custom Styles section, the width and height is fixed at 65px and crop mode is enabled.", TPTN_LOCAL_NAME ); ?></p>
+									<p style="color: #F00"><?php _e( "Default style selected under the Custom Styles. Thumbnail width and height is fixed at 65px and crop mode is enabled.", TPTN_LOCAL_NAME ); ?></p>
 								<?php } ?>
 							</p>
 						</td>
@@ -806,18 +847,6 @@ function tptn_options() {
 								<input type="radio" name="thumb_html" value="html" id="thumb_html_1" <?php if ( 'html' == $tptn_settings['thumb_html'] ) echo 'checked="checked"' ?> />
 								<?php _e( 'HTML width and height attributes are used for width and height.', TPTN_LOCAL_NAME ); ?> <br /><code>width="<?php echo $tptn_settings['thumb_width'] ?>" height="<?php echo $tptn_settings['thumb_height'] ?>"</code>
 							</label>
-						</td>
-					</tr>
-					<tr><th scope="row"><label for="thumb_timthumb"><?php _e( 'Use timthumb to generate thumbnails? ', TPTN_LOCAL_NAME ); ?></label></th>
-					  	<td>
-							<input type="checkbox" name="thumb_timthumb" id="thumb_timthumb" <?php if ( $tptn_settings['thumb_timthumb'] ) echo 'checked="checked"' ?> />
-							<p class="description"><?php _e( 'If checked, <a href="http://www.binarymoon.co.uk/projects/timthumb/" target="_blank">timthumb</a> will be used to generate thumbnails', TPTN_LOCAL_NAME ); ?></p>
-						</td>
-					</tr>
-					<tr><th scope="row"><label for="thumb_timthumb_q"><?php _e( 'Quality of thumbnails generated by timthumb:', TPTN_LOCAL_NAME ); ?></label></th>
-						<td>
-							<input type="textbox" name="thumb_timthumb_q" id="thumb_timthumb_q" value="<?php echo esc_attr( stripslashes( $tptn_settings['thumb_timthumb_q'] ) ); ?>" style="width:50px" />
-							<p class="description"><?php _e( 'Enter values between 0 and 100 only. 100 is highest quality and the highest file size. Suggested maximum value is 95. Default is 75.', TPTN_LOCAL_NAME ); ?></p>
 						</td>
 					</tr>
 					<tr><th scope="row"><label for="thumb_meta"><?php _e( 'Post thumbnail meta field name: ', TPTN_LOCAL_NAME ); ?></label></th>
@@ -998,7 +1027,7 @@ function tptn_options() {
 
 	  <form method="post" id="tptn_reset_options" name="tptn_reset_options" onsubmit="return checkForm()">
 	    <div id="resetopdiv" class="postbox"><div class="handlediv" title="<?php _e( 'Click to toggle', TPTN_LOCAL_NAME ); ?>"><br /></div>
-	      <h3 class='hndle'><span><?php _e( 'Reset count', TPTN_LOCAL_NAME ); ?></span></h3>
+	      <h3 class='hndle'><span><?php _e( 'Reset count and other tools', TPTN_LOCAL_NAME ); ?></span></h3>
 	      <div class="inside">
 		    <p class="description">
 		      <?php _e( 'This cannot be reversed. Make sure that your database has been backed up before proceeding', TPTN_LOCAL_NAME ); ?>
@@ -1006,7 +1035,18 @@ function tptn_options() {
 		    <p>
 		      <input name="tptn_trunc_all" type="submit" id="tptn_trunc_all" value="<?php _e( 'Reset Popular Posts', TPTN_LOCAL_NAME ); ?>" class="button button-secondary" style="color:#f00" onclick="if (!confirm('<?php _e( "Are you sure you want to reset the popular posts?", TPTN_LOCAL_NAME ); ?>')) return false;" />
 		      <input name="tptn_trunc_daily" type="submit" id="tptn_trunc_daily" value="<?php _e( 'Reset Daily Popular Posts', TPTN_LOCAL_NAME ); ?>" class="button button-secondary" style="color:#f00" onclick="if (!confirm('<?php _e( "Are you sure you want to reset the daily popular posts?", TPTN_LOCAL_NAME ); ?>')) return false;" />
-		      <input name="tptn_clean_duplicates" type="submit" id="tptn_clean_duplicates" value="<?php _e( 'Clear duplicates', TPTN_LOCAL_NAME ); ?>" class="button button-secondary" onclick="if (!confirm('<?php _e( "This will delete the duplicate entries in the tables. Proceed?", TPTN_LOCAL_NAME ); ?>')) return false;" />
+		    </p>
+		    <p class="description">
+		      <?php _e( 'This will merge post counts for posts with table entries of 0 and 1', TPTN_LOCAL_NAME ); ?>
+		    </p>
+		    <p>
+		      <input name="tptn_merge_blogids" type="submit" id="tptn_merge_blogids" value="<?php _e( 'Merge blog ID 0 and 1 post counts', TPTN_LOCAL_NAME ); ?>" class="button button-secondary" onclick="if (!confirm('<?php _e( "This will merge post counts for blog IDs 0 and 1. Proceed?", TPTN_LOCAL_NAME ); ?>')) return false;" />
+		    </p>
+		    <p class="description">
+		      <?php _e( 'In older versions, the plugin created entries with duplicate post IDs. Clicking the button below will merge these duplicate IDs', TPTN_LOCAL_NAME ); ?>
+		    </p>
+		    <p>
+		      <input name="tptn_clean_duplicates" type="submit" id="tptn_clean_duplicates" value="<?php _e( 'Merge duplicates across blog IDs', TPTN_LOCAL_NAME ); ?>" class="button button-secondary" onclick="if (!confirm('<?php _e( "This will delete the duplicate entries in the tables. Proceed?", TPTN_LOCAL_NAME ); ?>')) return false;" />
 		    </p>
 	      </div>
 	    </div>
@@ -1014,6 +1054,10 @@ function tptn_options() {
 	  </form>
 
 	  	<?php
+			/**
+			 * Only show the below options if it is multisite
+			 *
+			 */
 			if ( is_multisite() ) {
 		?>
 
@@ -1287,6 +1331,10 @@ function tptn_adminhead() {
 	wp_enqueue_script( 'common' );
 	wp_enqueue_script( 'wp-lists' );
 	wp_enqueue_script( 'postbox' );
+	wp_enqueue_script( 'plugin-install' );
+
+	add_thickbox();
+
 ?>
 	<style type="text/css">
 		.postbox .handlediv:before {
@@ -1429,5 +1477,50 @@ function tptn_clean_duplicates( $daily = false ) {
 	$wpdb->query( "INSERT INTO " . $table_name . " SELECT * FROM " . $table_name . "_temp" );
 }
 
+
+/**
+ * Function to merge counts with post numbers of blog ID 0 and 1 respectively.
+ *
+ * @since	2.0.4
+ *
+ * @param	bool 	$daily	Daily flag
+ */
+function tptn_merge_blogids( $daily = false ) {
+	global $wpdb;
+
+	$table_name = $wpdb->base_prefix . "top_ten";
+	if ( $daily ) {
+		$table_name .= "_daily";
+	}
+
+	if ( $daily ) {
+		$wpdb->query( "
+			INSERT INTO `$table_name` (postnumber, cntaccess, dp_date, blog_id) (
+				SELECT
+					postnumber,
+					SUM(cntaccess) as sumCount,
+					dp_date,
+					1
+				FROM `$table_name`
+				WHERE blog_ID IN (0,1)
+				GROUP BY postnumber, dp_date
+			) ON DUPLICATE KEY UPDATE cntaccess = VALUES(cntaccess);
+		" );
+	} else {
+		$wpdb->query( "
+			INSERT INTO `$table_name` (postnumber, cntaccess, blog_id) (
+				SELECT
+					postnumber,
+					SUM(cntaccess) as sumCount,
+					1
+				FROM `$table_name`
+				WHERE blog_ID IN (0,1)
+				GROUP BY postnumber
+			) ON DUPLICATE KEY UPDATE cntaccess = VALUES(cntaccess);
+		" );
+	}
+
+	$wpdb->query( "DELETE FROM $table_name WHERE blog_id = 0" );
+}
 
 ?>
